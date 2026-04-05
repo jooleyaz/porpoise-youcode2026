@@ -2,14 +2,15 @@ from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
 load_dotenv()
+
+app = Flask(__name__)
+CORS(app, origins=["https://porpoise-youcode2026.vercel.app"])
+
 from routes.users import volunteers_bp
 from routes.shifts import shifts_bp
 from routes.assignments import assignments_bp
 from routes.sms import sms_bp
 from routes.auth import auth_bp
-
-app = Flask(__name__)
-CORS(app, origins=["https://porpoise-youcode2026.vercel.app"])
 
 app.register_blueprint(volunteers_bp, url_prefix="/api/volunteers")
 app.register_blueprint(shifts_bp, url_prefix="/api/shifts")
