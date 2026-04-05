@@ -18,6 +18,7 @@ function authHeaders(): HeadersInit {
   const session = getSession()
   return {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
     ...(session ? { 'X-User-Id': session.userId } : {}),
   }
 }

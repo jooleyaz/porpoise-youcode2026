@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PageShell from '@/components/layout/PageShell'
 import Button from '@/components/ui/Button'
-import ChartArea from '@/components/admin/ChartArea'
 import { getSession } from '@/lib/session'
 import { getShifts } from '@/lib/api'
 
@@ -191,8 +190,6 @@ export default function DashboardPage() {
       <div className="md:hidden flex flex-col gap-[8px]">
         <Button variant="primary" onClick={() => router.push('/pickup')}>Pick up a shift</Button>
       </div>
-
-      <ChartArea title="Your shifts per month" />
 
       <button
         onClick={() => router.push('/settings')}

@@ -24,8 +24,11 @@ def list_shifts():
 
         query = """
             SELECT
-                s.id, s.title, s.shift_date, s.start_time, s.end_time,
-                s.is_recurring, s.status, s.created_at,
+                s.id, s.title,
+                s.shift_date::text  AS shift_date,
+                s.start_time::text  AS start_time,
+                s.end_time::text    AS end_time,
+                s.is_recurring, s.status, s.created_at::text,
                 COALESCE(
                     json_agg(
                         json_build_object(
@@ -92,8 +95,9 @@ def get_shift(shift_id):
     try:
         # get shift
         cur.execute("""
-            SELECT id, title, shift_date, start_time, end_time,
-                   is_recurring, recurrence_rule, status, created_at
+            SELECT id, title,
+                   shift_date::text, start_time::text, end_time::text,
+                   is_recurring, recurrence_rule, status, created_at::text
             FROM shifts
             WHERE id = %s
         """, (str(shift_id),))

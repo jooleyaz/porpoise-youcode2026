@@ -88,7 +88,9 @@ export default function DropPage(props: { searchParams: Promise<{ shiftId?: stri
       setShowConfirm(false)
       router.push('/dashboard')
     } catch (err) {
-      setDropError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+      const msg = err instanceof Error ? err.message : ''
+      // Don't show raw HTML from server errors — show a clean message instead
+      setDropError(msg.startsWith('<') || msg.length > 120 ? 'Could not cancel shift. Please try again.' : msg)
       setShowConfirm(false)
     } finally {
       setDropping(false)

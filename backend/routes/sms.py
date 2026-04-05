@@ -123,19 +123,103 @@ def send_reminder_sms(phone, name, shift):
 
 @sms_bp.route("/reply", methods=["POST"])
 def handle_reply():
-    # Twilio webhook — fires when volunteer replies to any SMS
-    from_number = request.form.get("From")
-    body = request.form.get("Body").strip().upper()
+    # Twilio webhook — fires when a volunteer replies to any SMS
+    from_number = request.form.get("From", "").strip()
+    body        = request.form.get("Body", "").strip().upper()
 
-    if body == "YES":
-        # look up latest pending cover_outreach for this number
-        # accept it, cancel others in same batch
-        # send confirmation SMS back
-        pass
-    elif body == "NO":
-        # mark their cover_outreach as declined
-        # check if anyone else in batch responded
-        pass
+    if not from_number:
+        return "OK", 200
+
+    conn = get_db()
+    cur  = conn.cursor()
+
+    try:
+        # look up the user by phone number
+        cur.execute("SELECT id, name, phone FROM users WHERE phone = %s", (from_number,))
+        user = cur.fetchone()
+        if not user:
+            return "OK", 200
+
+        # find the most recent pending cover_outreach for this user
+        cur.execute("""
+            SELECT
+                co.id AS outreach_id,
+                co.cover_request_id,
+                co.token,
+                cr.shift_assignment_id,
+                sa.shift_position_id,
+                s.shift_date, s.start_time, r.name AS role_name
+            FROM cover_outreach co
+            JOIN cover_requests cr ON cr.id = co.cover_request_id
+            JOIN shift_assignments sa ON sa.id = cr.shift_assignment_id
+            JOIN shift_positions sp ON sp.id = sa.shift_position_id
+            JOIN shifts s ON s.id = sp.shift_id
+            JOIN roles r ON r.id = sp.role_id
+            WHERE co.user_id = %s
+            AND co.status = 'sent'
+            AND co.token_expires_at > NOW()
+            ORDER BY co.sent_at DESC
+            LIMIT 1
+        """, (user["id"],))
+        outreach = cur.fetchone()
+
+        if not outreach:
+            # no active offer — politely ignore
+            return "OK", 200
+
+        if body in ("YES", "Y"):
+            # accept: create assignment, fill slot, expire other outreach in batch
+            cur.execute("""
+                INSERT INTO shift_assignments (shift_position_id, user_id, status, confirmed_at)
+                VALUES (%s, %s, 'confirmed', NOW())
+                ON CONFLICT (shift_position_id, user_id) DO UPDATE SET status = 'confirmed', confirmed_at = NOW()
+                RETURNING id
+            """, (outreach["shift_position_id"], user["id"]))
+            new_assignment_id = cur.fetchone()["id"]
+
+            cur.execute("UPDATE shift_positions SET slots_filled = slots_filled + 1 WHERE id = %s",
+                        (outreach["shift_position_id"],))
+
+            cur.execute("UPDATE cover_outreach SET status = 'accepted', responded_at = NOW() WHERE id = %s",
+                        (outreach["outreach_id"],))
+
+            cur.execute("""
+                UPDATE cover_outreach SET status = 'expired'
+                WHERE cover_request_id = %s AND id != %s AND status = 'sent'
+            """, (outreach["cover_request_id"], outreach["outreach_id"]))
+
+            cur.execute("""
+                UPDATE cover_requests SET status = 'filled', resolved_at = NOW()
+                WHERE id = %s
+            """, (outreach["cover_request_id"],))
+
+            # send confirmation back
+            confirm_body = (
+                f"You're confirmed for {outreach['role_name']} at Sprouts on "
+                f"{outreach['shift_date']} at {str(outreach['start_time'])[:5]}. "
+                f"Thank you!"
+            )
+            get_twilio().messages.create(
+                to=user["phone"],
+                from_=os.getenv("TWILIO_PHONENUMBER"),
+                body=confirm_body,
+            )
+            cur.execute("""
+                INSERT INTO sms_log (user_id, message_type, body, status)
+                VALUES (%s, 'confirmation', %s, 'sent')
+            """, (user["id"], confirm_body))
+
+        elif body in ("NO", "N"):
+            cur.execute("UPDATE cover_outreach SET status = 'declined', responded_at = NOW() WHERE id = %s",
+                        (outreach["outreach_id"],))
+
+        conn.commit()
+
+    except Exception:
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
 
     return "OK", 200
 
@@ -202,12 +286,15 @@ def send_confirmation():
         # generate confirmation magic link
         link = generate_magic_link(cur, user_id, link_type="confirm_assignment", expires_hours=24)
 
-        body = (f"insert text notification here with {user['name']}, title, shiftdate, starttime, rolename, tap to confirm on link")
-
-        get_twilio().messages.create(
-            to=user["phone"],
-            from_=os.getenv("TWILIO_PHONENUMBER"),
-            body=body
+        body = send_sms(
+            user["phone"],
+            REASON.REMINDER,
+            link,
+            "Sprouts",
+            shift_date=str(shift["shift_date"]),
+            shift_time=str(shift["start_time"]),
+            shift_role=shift["role_name"],
+            name=user["name"],
         )
 
         cur.execute("""
