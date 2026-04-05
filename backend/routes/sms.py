@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from routes.utils import get_db, get_twilio, require_admin
-from send_sms import send_sms, REASON
+from routes.send_sms import send_sms, REASON
 
 #POSSIBLY NOT NEEDED, IF MAGIC LINKS ARE USED!!!!!!!!!
 
