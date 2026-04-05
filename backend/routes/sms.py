@@ -10,6 +10,7 @@ import argostranslate.translate as translate
 #POSSIBLY NOT NEEDED, IF MAGIC LINKS ARE USED!!!!!!!!!
 
 sms_bp = Blueprint("sms", __name__)
+user_language_code = 'en'
 
 # HELPERS
 
