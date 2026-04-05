@@ -4,16 +4,17 @@ import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import PageShell from '@/components/layout/PageShell'
 import Button from '@/components/ui/Button'
-import PorpoiseIcon from '@/components/ui/PorpoiseIcon'
+import Image from 'next/image'
 import AvailGrid, { gridToAvailability } from '@/components/availability/AvailGrid'
 import { validateToken, setAvailability } from '@/lib/api'
 import { setSession, getSession } from '@/lib/session'
 
 type Step = 'landing' | 'availability' | 'complete'
 
-export default function OnboardPage(props: { searchParams: Promise<{ token?: string }> }) {
+export default function OnboardPage(props: { searchParams: Promise<{ jwt?: string; token?: string }> }) {
   const searchParams = use(props.searchParams)
-  const token = searchParams.token ?? ''
+  // Backend redirects to /onboard?jwt=<JWT>; support legacy ?token= for dev
+  const token = searchParams.jwt ?? searchParams.token ?? ''
   const router = useRouter()
 
   const [step, setStep] = useState<Step>('landing')
@@ -76,7 +77,7 @@ export default function OnboardPage(props: { searchParams: Promise<{ token?: str
   if (error) {
     return (
       <PageShell className="items-center justify-center text-center gap-4">
-        <PorpoiseIcon size={48} />
+        <Image src="/logos/main.png" alt="Porpoise" width={120} height={40} className="object-contain opacity-50" />
         <div className="text-[16px] font-semibold text-[#533A3A]">Invalid Link</div>
         <div className="text-[12px] text-[#5a6490]">{error}</div>
       </PageShell>
@@ -87,7 +88,7 @@ export default function OnboardPage(props: { searchParams: Promise<{ token?: str
   if (step === 'landing') {
     return (
       <PageShell className="items-center justify-center text-center gap-[14px]">
-        <PorpoiseIcon size={48} />
+        <Image src="/logos/banner.png" alt="Porpoise" width={160} height={56} className="object-contain" />
         <div className="text-[18px] font-semibold text-[#3D4975]">Welcome to Porpoise</div>
         <div className="text-[12px] text-[#5a6490] leading-relaxed">
           You&rsquo;ve been invited to join the volunteer team. Set up takes about 2 minutes.

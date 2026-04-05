@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PageShell from '@/components/layout/PageShell'
-import PorpoiseIcon from '@/components/ui/PorpoiseIcon'
+import Image from 'next/image'
 import Button from '@/components/ui/Button'
 import StatCard from '@/components/admin/StatCard'
 import ChartArea from '@/components/admin/ChartArea'
@@ -67,7 +67,7 @@ export default function AdminShiftsPage() {
           <div className="text-[17px] text-[#2a2a3d]">Hello <strong>Admin!</strong></div>
           <div className="hidden md:block text-[11px] text-[#9aa0bc] mt-0.5">May 2026</div>
         </div>
-        <PorpoiseIcon size={28} className="opacity-50 md:hidden" />
+        <Image src="/logos/main.png" alt="Porpoise" width={72} height={24} className="object-contain opacity-60 md:hidden" />
       </div>
 
       {/* Stat cards — row on desktop */}
@@ -158,7 +158,10 @@ export default function AdminShiftsPage() {
 
       <ChartArea title="Shifts filled per month" />
 
-      <button className="bg-[#BDDEDE] text-[#2d5a5a] rounded-xl px-[14px] py-[10px] text-[13px] font-medium text-center">
+      <button
+        onClick={() => router.push('/settings')}
+        className="md:hidden bg-[#BDDEDE] text-[#2d5a5a] rounded-xl px-[14px] py-[10px] text-[13px] font-medium text-center"
+      >
         Settings
       </button>
     </PageShell>

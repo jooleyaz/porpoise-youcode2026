@@ -114,7 +114,10 @@ export default function ShiftDetailPage(props: { params: Promise<{ id: string }>
         </Button>
       ) : null}
 
-      <button className="bg-[#BDDEDE] text-[#2d5a5a] rounded-xl px-[14px] py-[10px] text-[13px] font-medium text-center mt-auto">
+      <button
+        onClick={() => router.push('/settings')}
+        className="md:hidden bg-[#BDDEDE] text-[#2d5a5a] rounded-xl px-[14px] py-[10px] text-[13px] font-medium text-center mt-auto"
+      >
         Settings
       </button>
     </PageShell>

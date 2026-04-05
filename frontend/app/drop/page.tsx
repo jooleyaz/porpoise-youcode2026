@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import PageShell from '@/components/layout/PageShell'
 import BackRow from '@/components/layout/BackRow'
@@ -16,7 +16,8 @@ interface ShiftItem {
   time: string
 }
 
-export default function DropPage() {
+export default function DropPage(props: { searchParams: Promise<{ shiftId?: string; assignmentId?: string }> }) {
+  const searchParams = use(props.searchParams)
   const router = useRouter()
   const [shifts, setShifts] = useState<ShiftItem[]>([])
   const [selected, setSelected] = useState<string | null>(null)
@@ -27,20 +28,28 @@ export default function DropPage() {
     const session = getSession()
     if (!session) { router.replace('/onboard'); return }
 
-    // Dev fallback
-    setShifts([
-      { id: '1', assignmentId: 'a1', label: 'May 3 — Cook', time: '6:30–8:30pm' },
-      { id: '2', assignmentId: 'a2', label: 'May 4 — Server', time: '5:00–9:00pm' },
-      { id: '3', assignmentId: 'a3', label: 'May 7 — Setup', time: '9:00am–12pm' },
-    ])
-  }, [router])
+    const fallback: ShiftItem[] = [
+      { id: 's1', assignmentId: 'a1', label: 'May 3 — Cook', time: '6:30–8:30pm' },
+      { id: 's2', assignmentId: 'a2', label: 'May 4 — Server', time: '5:00–9:00pm' },
+      { id: 's3', assignmentId: 'a3', label: 'May 7 — Setup', time: '9:00am–12pm' },
+    ]
+    setShifts(fallback)
+
+    // Pre-select if navigated from a specific shift card
+    if (searchParams.shiftId) {
+      const match = fallback.find(s => s.id === searchParams.shiftId)
+      if (match) setSelected(match.id)
+    }
+  }, [router, searchParams.shiftId])
 
   async function confirmDrop() {
     if (!selected) return
     setDropping(true)
     const item = shifts.find(s => s.id === selected)
     try {
-      if (item?.assignmentId) await cancelAssignment(item.assignmentId)
+      // Prefer assignmentId from the item; fall back to URL param
+      const aId = item?.assignmentId ?? searchParams.assignmentId
+      if (aId) await cancelAssignment(aId)
     } catch { /* dev */ }
     setShowConfirm(false)
     router.push('/dashboard')

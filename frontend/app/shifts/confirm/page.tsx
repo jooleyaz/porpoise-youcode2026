@@ -2,18 +2,22 @@
 
 import { useState, useEffect, use } from 'react'
 import PageShell from '@/components/layout/PageShell'
-import { validateToken, confirmAssignment, cancelAssignment } from '@/lib/api'
+import { getShiftOfferDetails, acceptCover, declineCover } from '@/lib/api'
+import type { ShiftOfferDetails } from '@/lib/api'
 
-type OfferState = 'pending' | 'accepted' | 'declined' | 'loading'
+type OfferState = 'loading' | 'pending' | 'accepted' | 'declined' | 'expired' | 'error'
 
-interface OfferDetails {
-  shiftTitle?: string
-  role?: string
-  date?: string
-  time?: string
-  assignmentId?: string
-  name?: string
-  expiresMin?: number
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+function formatTime(t: string) {
+  const [h, m] = t.split(':').map(Number)
+  const suffix = h >= 12 ? 'pm' : 'am'
+  const h12 = h % 12 || 12
+  return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`
+}
+function minutesUntil(isoStr: string) {
+  return Math.max(0, Math.round((new Date(isoStr).getTime() - Date.now()) / 60000))
 }
 
 export default function ShiftConfirmPage(props: { searchParams: Promise<{ token?: string }> }) {
@@ -21,61 +25,58 @@ export default function ShiftConfirmPage(props: { searchParams: Promise<{ token?
   const token = searchParams.token ?? ''
 
   const [state, setState] = useState<OfferState>('loading')
-  const [offer, setOffer] = useState<OfferDetails>({})
-  const [error, setError] = useState('')
+  const [offer, setOffer] = useState<ShiftOfferDetails | null>(null)
+  const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
     if (!token) {
-      setError('Invalid or missing shift offer link.')
-      setState('pending')
+      setErrorMsg('Invalid or missing shift offer link.')
+      setState('error')
       return
     }
-    validateToken(token)
-      .then(session => {
-        // Token payload carries shift info in extended fields
-        const ext = session as unknown as OfferDetails & { assignmentId?: string }
-        setOffer({
-          shiftTitle: ext.shiftTitle ?? 'Volunteer Shift',
-          role: ext.role ?? 'Front of House',
-          date: ext.date ?? 'Sat May 10',
-          time: ext.time ?? '11am–2pm',
-          assignmentId: ext.assignmentId,
-          name: session.name,
-          expiresMin: 58,
-        })
+    getShiftOfferDetails(token)
+      .then(details => {
+        setOffer(details)
         setState('pending')
       })
-      .catch(() => {
-        // Dev fallback
-        setOffer({
-          shiftTitle: 'Volunteer Shift',
-          role: 'Front of House',
-          date: 'Sat May 10',
-          time: '11am–2pm',
-          name: 'Volunteer',
-          expiresMin: 58,
-        })
-        setState('pending')
+      .catch(err => {
+        const msg = (err as Error).message ?? ''
+        if (msg.includes('expired') || msg.includes('404')) {
+          setState('expired')
+        } else {
+          // Dev fallback — backend not running
+          setOffer({
+            outreach_id:    'dev',
+            volunteer_name: 'Volunteer',
+            shift_title:    'Volunteer Shift',
+            shift_date:     '2026-05-10',
+            start_time:     '11:00',
+            end_time:       '14:00',
+            role:           'Front of House',
+            expires_at:     new Date(Date.now() + 58 * 60000).toISOString(),
+          })
+          setState('pending')
+        }
       })
   }, [token])
 
   async function handleYes() {
     setState('loading')
     try {
-      if (offer.assignmentId) await confirmAssignment(offer.assignmentId)
+      await acceptCover(token)
       setState('accepted')
     } catch {
-      setState('accepted') // dev
+      setState('accepted') // optimistic in dev
     }
   }
 
   async function handleNo() {
     setState('loading')
     try {
-      if (offer.assignmentId) await cancelAssignment(offer.assignmentId)
+      await declineCover(token)
       setState('declined')
     } catch {
-      setState('declined') // dev
+      setState('declined') // optimistic in dev
     }
   }
 
@@ -87,13 +88,34 @@ export default function ShiftConfirmPage(props: { searchParams: Promise<{ token?
     )
   }
 
+  if (state === 'expired') {
+    return (
+      <PageShell className="items-center justify-center gap-4 text-center">
+        <div className="bg-[#f0f2f8] rounded-xl px-4 py-[12px] w-full text-left">
+          <div className="text-[12px] font-semibold text-[#9aa0bc]">This offer has expired</div>
+          <div className="text-[11px] text-[#9aa0bc] mt-1 leading-relaxed">
+            The shift was filled or the offer window closed. Check your SMS for any new offers.
+          </div>
+        </div>
+      </PageShell>
+    )
+  }
+
+  if (state === 'error') {
+    return (
+      <PageShell className="items-center justify-center gap-4 text-center">
+        <div className="text-[12px] text-[#533A3A]">{errorMsg}</div>
+      </PageShell>
+    )
+  }
+
   if (state === 'accepted') {
     return (
       <PageShell className="items-center justify-center gap-4 text-center">
         <div className="bg-[#e8f5ee] rounded-xl px-4 py-[12px] w-full text-left">
           <div className="text-[12px] font-semibold text-[#2d6a40] mb-[2px]">You&rsquo;re confirmed. Thank you!</div>
           <div className="text-[11px] text-[#3d7a50] leading-relaxed">
-            {offer.role}, {offer.date}. You&rsquo;re helping keep things running!
+            {offer?.role}, {offer ? formatDate(offer.shift_date) : ''}. You&rsquo;re helping keep things running!
           </div>
         </div>
       </PageShell>
@@ -103,9 +125,9 @@ export default function ShiftConfirmPage(props: { searchParams: Promise<{ token?
   if (state === 'declined') {
     return (
       <PageShell className="items-center justify-center gap-4 text-center">
-        <div className="bg-[#fdf2f2] rounded-xl px-4 py-[10px] w-full text-left">
-          <div className="text-[13px] font-semibold text-[#533A3A]">Got it</div>
-          <div className="text-[11px] text-[#7a5050] mt-1">
+        <div className="bg-[#f0f2f8] rounded-xl px-4 py-[12px] w-full text-left">
+          <div className="text-[12px] font-semibold text-[#5a6490]">No problem</div>
+          <div className="text-[11px] text-[#9aa0bc] mt-1">
             We&rsquo;ll find a replacement. Thanks for letting us know.
           </div>
         </div>
@@ -114,20 +136,21 @@ export default function ShiftConfirmPage(props: { searchParams: Promise<{ token?
   }
 
   // ── Pending offer ──────────────────────────────────────────────────────────
+  const expiresMin = offer ? minutesUntil(offer.expires_at) : 0
+
   return (
     <PageShell>
       <div className="text-[11px] text-[#9aa0bc] text-center mb-1">Messages — Porpoise</div>
 
-      {/* SMS bubble area */}
       <div className="flex flex-col gap-2 bg-[#f8f9fc] rounded-xl p-[10px]">
-        <div className="bg-[#e8eaf5] rounded-[10px_10px_10px_3px] px-[10px] py-2 text-[11px] text-[#3D4975] self-start max-w-[85%]">
-          Hi <strong>{offer.name}</strong>, a shift is available that matches your availability.
+        <div className="bg-[#e8eaf5] rounded-[10px_10px_10px_3px] px-[10px] py-2 text-[11px] text-[#3D4975] self-start max-w-[90%] leading-relaxed">
+          Hi <strong>{offer?.volunteer_name}</strong>, a shift needs covering and you&rsquo;d be a great fit.
           <br /><br />
-          <strong>{offer.role}</strong>
+          <strong>{offer?.role}</strong>
           <br />
-          {offer.date}, {offer.time}
+          {offer ? formatDate(offer.shift_date) : ''}, {offer ? `${formatTime(offer.start_time)}–${formatTime(offer.end_time)}` : ''}
           <br /><br />
-          Interested?
+          Can you help out?
         </div>
 
         <div className="flex gap-[6px] mt-0.5">
@@ -147,17 +170,8 @@ export default function ShiftConfirmPage(props: { searchParams: Promise<{ token?
       </div>
 
       <div className="text-[10px] text-[#9aa0bc] text-center">
-        Or reply YES / NO to this message
+        Or reply YES / NO · Offer expires in {expiresMin} min
       </div>
-      {offer.expiresMin && (
-        <div className="text-[10px] text-[#9aa0bc] text-center">
-          Offer expires in {offer.expiresMin} min
-        </div>
-      )}
-
-      {error && (
-        <div className="text-[11px] text-[#533A3A] text-center">{error}</div>
-      )}
     </PageShell>
   )
 }

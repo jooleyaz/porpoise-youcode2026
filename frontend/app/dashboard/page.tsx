@@ -3,18 +3,25 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PageShell from '@/components/layout/PageShell'
-import PorpoiseIcon from '@/components/ui/PorpoiseIcon'
+import Image from 'next/image'
 import Button from '@/components/ui/Button'
 import ChartArea from '@/components/admin/ChartArea'
 import { getSession } from '@/lib/session'
 import { getShifts } from '@/lib/api'
 
-interface UpcomingShift { date: string; time: string; role: string; location?: string }
+interface UpcomingShift {
+  id: string          // shift id (used for drop pre-select)
+  assignmentId?: string
+  date: string
+  time: string
+  role: string
+  location?: string
+}
 
 const FALLBACK_SHIFTS: UpcomingShift[] = [
-  { date: 'May 3', time: '6:30–8:30pm', role: 'Cook', location: 'Sprouts Cafe' },
-  { date: 'May 4', time: '5:00–9:00pm', role: 'Server', location: 'Sprouts Cafe' },
-  { date: 'May 7', time: '9:00am–12pm', role: 'Setup', location: 'Sprouts Cafe' },
+  { id: 's1', assignmentId: 'a1', date: 'May 3', time: '6:30–8:30pm', role: 'Cook', location: 'Sprouts Cafe' },
+  { id: 's2', assignmentId: 'a2', date: 'May 4', time: '5:00–9:00pm', role: 'Server', location: 'Sprouts Cafe' },
+  { id: 's3', assignmentId: 'a3', date: 'May 7', time: '9:00am–12pm', role: 'Setup', location: 'Sprouts Cafe' },
 ]
 
 function formatTime(t: string) {
@@ -30,6 +37,7 @@ export default function DashboardPage() {
   const [shiftsThisMonth] = useState(7)
   const [streakWeeks] = useState(3)
   const [upcomingShifts, setUpcomingShifts] = useState<UpcomingShift[]>(FALLBACK_SHIFTS)
+  const [showAllShifts, setShowAllShifts] = useState(false)
 
   useEffect(() => {
     const session = getSession()
@@ -40,6 +48,7 @@ export default function DashboardPage() {
     getShifts({ status: 'open' })
       .then(shifts => {
         const mapped = shifts.slice(0, 5).map(s => ({
+          id: s.id,
           date: new Date(s.shift_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
           time: `${formatTime(s.start_time)}–${formatTime(s.end_time)}`,
           role: s.positions?.[0]?.role?.name ?? 'Staff',
@@ -49,13 +58,21 @@ export default function DashboardPage() {
       .catch(() => {})
   }, [router])
 
+  const visibleShifts = showAllShifts ? upcomingShifts : upcomingShifts.slice(0, 3)
+  const hiddenCount = upcomingShifts.length - 3
+
+  function handleCantMake(shift: UpcomingShift) {
+    const params = new URLSearchParams({ shiftId: shift.id })
+    if (shift.assignmentId) params.set('assignmentId', shift.assignmentId)
+    router.push(`/drop?${params.toString()}`)
+  }
+
   return (
     <PageShell>
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <div className="text-[17px] text-[#2a2a3d]">
-            {/* Desktop: more personal greeting */}
             <span className="hidden md:inline">Welcome back, <strong>{name}</strong></span>
             <span className="md:hidden">Hello <strong>{name}!</strong></span>
           </div>
@@ -63,8 +80,7 @@ export default function DashboardPage() {
             You&rsquo;ve volunteered {shiftsThisMonth} times this month — the team appreciates every single one.
           </div>
         </div>
-        <PorpoiseIcon size={28} className="opacity-50 md:hidden" />
-        {/* Desktop: Pick up a shift CTA in header */}
+        <Image src="/logos/main.png" alt="Porpoise" width={72} height={24} className="object-contain opacity-60 md:hidden" />
         <button
           onClick={() => router.push('/pickup')}
           className="hidden md:block bg-[#3D4975] text-white rounded-lg px-[12px] py-[5px] text-[11px] font-medium"
@@ -105,25 +121,43 @@ export default function DashboardPage() {
 
       {/* Badges row */}
       <div className="flex flex-wrap gap-[6px]">
-        <span className="flex items-center gap-1 bg-[#3D4975] text-white rounded-full px-[8px] py-[4px] text-[10px] font-medium">
-          ⚡ Last Minute Hero
-        </span>
-        <span className="flex items-center gap-1 bg-[#C2CAE7] text-[#3D4975] rounded-full px-[8px] py-[4px] text-[10px] font-medium">
-          🔥 On a Roll
-        </span>
-        <span className="flex items-center gap-1 bg-[#C2CAE7] text-[#3D4975] rounded-full px-[8px] py-[4px] text-[10px] font-medium">
-          🤝 Team Player
-        </span>
-        <span className="flex items-center gap-1 bg-[#f0f2f8] text-[#9aa0bc] rounded-full px-[8px] py-[4px] text-[10px] font-medium opacity-60">
-          🌟 25 shifts — 18 to go
-        </span>
+        <span className="flex items-center gap-1 bg-[#3D4975] text-white rounded-full px-[8px] py-[4px] text-[10px] font-medium">⚡ Last Minute Hero</span>
+        <span className="flex items-center gap-1 bg-[#C2CAE7] text-[#3D4975] rounded-full px-[8px] py-[4px] text-[10px] font-medium">🔥 On a Roll</span>
+        <span className="flex items-center gap-1 bg-[#C2CAE7] text-[#3D4975] rounded-full px-[8px] py-[4px] text-[10px] font-medium">🤝 Team Player</span>
+        <span className="flex items-center gap-1 bg-[#f0f2f8] text-[#9aa0bc] rounded-full px-[8px] py-[4px] text-[10px] font-medium opacity-60">🌟 25 shifts — 18 to go</span>
       </div>
 
       {/* Upcoming shifts */}
       <div>
-        <div className="text-[12px] font-semibold text-[#2a2a3d] mb-2">Upcoming shifts</div>
+        <div className="text-[12px] font-semibold text-[#2a2a3d] mb-[6px]">Upcoming shifts</div>
 
-        {/* Desktop table */}
+        {/* Mobile: individual bubble cards */}
+        <div className="md:hidden flex flex-col gap-[6px]">
+          {visibleShifts.map((s) => (
+            <div key={s.id} className="bg-[#C2CAE7] rounded-xl px-[12px] py-[10px] flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[12px] font-semibold text-[#3D4975]">{s.date} · {s.role}</div>
+                <div className="text-[11px] text-[#5a6490]">{s.time}{s.location ? ` · ${s.location}` : ''}</div>
+              </div>
+              <button
+                onClick={() => handleCantMake(s)}
+                className="shrink-0 text-[10px] text-[#9aa0bc] underline underline-offset-2 hover:text-[#533A3A] text-right"
+              >
+                Can&rsquo;t make it
+              </button>
+            </div>
+          ))}
+          {!showAllShifts && hiddenCount > 0 && (
+            <button
+              onClick={() => setShowAllShifts(true)}
+              className="text-[11px] text-[#3D4975] underline underline-offset-2 text-center py-1"
+            >
+              + {hiddenCount} more
+            </button>
+          )}
+        </div>
+
+        {/* Desktop: table */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -134,15 +168,15 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {upcomingShifts.map((s, i) => (
-                <tr key={i} className="border-b border-[#f0f2f6]">
+              {upcomingShifts.map((s) => (
+                <tr key={s.id} className="border-b border-[#f0f2f6]">
                   <td className="text-[11px] text-[#3D4975] font-semibold px-[10px] py-[8px]">{s.date}</td>
                   <td className="text-[11px] text-[#3D4975] px-[10px] py-[8px]">{s.time}</td>
                   <td className="text-[11px] text-[#3D4975] px-[10px] py-[8px]">{s.role}</td>
                   <td className="text-[11px] text-[#9aa0bc] px-[10px] py-[8px]">{s.location ?? '—'}</td>
                   <td className="px-[10px] py-[8px]">
                     <button
-                      onClick={() => router.push('/drop')}
+                      onClick={() => handleCantMake(s)}
                       className="text-[10px] text-[#9aa0bc] underline underline-offset-2 hover:text-[#533A3A]"
                     >
                       Can&rsquo;t make it
@@ -153,40 +187,24 @@ export default function DashboardPage() {
             </tbody>
           </table>
         </div>
-
-        {/* Mobile upcoming list */}
-        <div className="md:hidden bg-[#C2CAE7] rounded-xl px-[12px] py-[10px]">
-          <div className="text-[12px] font-bold text-[#3D4975] mb-[5px]">Upcoming shifts:</div>
-          {upcomingShifts.map((s, i) => (
-            <div key={i} className="text-[11px] text-[#4a5280] py-[2px]">
-              {s.date}, {s.time} — {s.role}
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* Mobile-only action buttons */}
+      {/* Action buttons */}
       <div className="md:hidden flex flex-col gap-[8px]">
         <Button variant="primary" onClick={() => router.push('/pickup')}>Pick up a shift</Button>
         <Button variant="ghost" onClick={() => router.push('/availability')}>Change availability</Button>
       </div>
-
-      {/* Desktop action buttons */}
       <div className="hidden md:flex gap-[8px]">
         <Button variant="ghost" onClick={() => router.push('/availability')}>Edit availability</Button>
       </div>
 
       <ChartArea title="Your shifts per month" />
 
-      <button className="bg-[#BDDEDE] text-[#2d5a5a] rounded-xl px-[14px] py-[10px] text-[13px] font-medium text-center">
-        Settings
-      </button>
-
       <button
-        onClick={() => router.push('/drop')}
-        className="text-[11px] text-[#9aa0bc] underline underline-offset-2 text-center py-1 hover:text-[#533A3A]"
+        onClick={() => router.push('/settings')}
+        className="md:hidden bg-[#BDDEDE] text-[#2d5a5a] rounded-xl px-[14px] py-[10px] text-[13px] font-medium text-center"
       >
-        I can&rsquo;t make a shift
+        Settings
       </button>
     </PageShell>
   )

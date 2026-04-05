@@ -23,12 +23,12 @@ export default function NavBar() {
     { label: 'Dashboard', href: '/shifts' },
     { label: 'Shifts', href: '/shifts' },
     { label: 'Volunteers', href: '/volunteers' },
-    { label: 'Schedule', href: '/schedule' },
+    { label: 'Schedule', href: '/shifts/schedule' },
   ]
 
   const volunteerLinks = [
     { label: 'Dashboard', href: '/dashboard' },
-    { label: 'My shifts', href: '/pickup' },
+    { label: 'My shifts', href: '/my-shifts' },
     { label: 'Availability', href: '/availability' },
   ]
 
@@ -94,7 +94,7 @@ export default function NavBar() {
         <div className="mt-auto flex flex-col gap-1">
           <button
             onClick={() => router.push('/settings')}
-            className="text-left px-[10px] py-[7px] rounded-lg text-[11px] text-[#c2cae7] hover:bg-white/10"
+            className={`text-left px-[10px] py-[7px] rounded-lg text-[11px] transition-colors ${isActive('/settings') ? 'bg-white/15 text-white font-medium' : 'text-[#c2cae7] hover:bg-white/10'}`}
           >
             Settings
           </button>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import PorpoiseIcon from '@/components/ui/PorpoiseIcon'
+import Image from 'next/image'
 
 interface BackRowProps {
   title?: string
@@ -34,7 +34,7 @@ export default function BackRow({ title, boldPart, showIcon = false, href }: Bac
       )}
       {showIcon && (
         <div className="ml-auto">
-          <PorpoiseIcon size={28} className="opacity-50" />
+          <Image src="/logos/main.png" alt="Porpoise" width={72} height={24} className="object-contain opacity-60" />
         </div>
       )}
     </div>
