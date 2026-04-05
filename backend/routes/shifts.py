@@ -1,53 +1,483 @@
+import os
 from flask import Blueprint, request, jsonify
+from utils import get_db, require_admin
+from routes.sms import send_shift_offer_sms
 
 shifts_bp = Blueprint("shifts", __name__)
 
+# NOTE: mainly generated + check over
+
+# GET /api/shifts?date=2026-04-01&status=open
 @shifts_bp.route("/", methods=["GET"])
+@require_admin
 def list_shifts():
-    # GET /api/shifts — list all shifts with fill status
-    # query params: ?date=2026-04-01 &status=open
-    pass
+    date   = request.args.get("date")
+    status = request.args.get("status")
 
+    conn = get_db()
+    cur  = conn.cursor()
+
+    try:
+        query = """
+            SELECT
+                s.id, s.title, s.shift_date, s.start_time, s.end_time,
+                s.is_recurring, s.status, s.created_at,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'position_id',  sp.id,
+                            'role_id',      sp.role_id,
+                            'role_name',    r.name,
+                            'slots_total',  sp.slots_total,
+                            'slots_filled', sp.slots_filled
+                        )
+                    ) FILTER (WHERE sp.id IS NOT NULL), '[]'
+                ) AS positions
+            FROM shifts s
+            LEFT JOIN shift_positions sp ON sp.shift_id = s.id
+            LEFT JOIN roles r ON r.id = sp.role_id
+            WHERE 1=1
+        """
+        params = []
+
+        if date:
+            query += " AND s.shift_date = %s"
+            params.append(date)
+        if status:
+            query += " AND s.status = %s"
+            params.append(status)
+
+        query += " GROUP BY s.id ORDER BY s.shift_date ASC, s.start_time ASC"
+
+        cur.execute(query, params)
+        shifts = cur.fetchall()
+        return jsonify([dict(s) for s in shifts]), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# GET /api/shifts/:id
 @shifts_bp.route("/<uuid:shift_id>", methods=["GET"])
+@require_admin
 def get_shift(shift_id):
-    # GET /api/shifts/:id — shift detail + positions + assigned users
-    pass
+    conn = get_db()
+    cur  = conn.cursor()
 
+    try:
+        # get shift
+        cur.execute("""
+            SELECT id, title, shift_date, start_time, end_time,
+                   is_recurring, recurrence_rule, status, created_at
+            FROM shifts
+            WHERE id = %s
+        """, (str(shift_id),))
+        shift = cur.fetchone()
+
+        if not shift:
+            return jsonify({"error": "Shift not found"}), 404
+
+        # get positions + assigned users per position
+        cur.execute("""
+            SELECT
+                sp.id AS position_id,
+                r.name AS role_name,
+                sp.slots_total,
+                sp.slots_filled,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'assignment_id', sa.id,
+                            'user_id',       u.id,
+                            'name',          u.name,
+                            'phone',         u.phone,
+                            'status',        sa.status
+                        )
+                    ) FILTER (WHERE sa.id IS NOT NULL), '[]'
+                ) AS assigned_users
+            FROM shift_positions sp
+            JOIN roles r ON r.id = sp.role_id
+            LEFT JOIN shift_assignments sa ON sa.shift_position_id = sp.id
+                AND sa.status != 'cancelled'
+            LEFT JOIN users u ON u.id = sa.user_id
+            WHERE sp.shift_id = %s
+            GROUP BY sp.id, r.name
+        """, (str(shift_id),))
+        positions = cur.fetchall()
+
+        result = dict(shift)
+        result["positions"] = [dict(p) for p in positions]
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# POST /api/shifts
 @shifts_bp.route("/", methods=["POST"])
+@require_admin
 def create_shift():
-    # POST /api/shifts
-    # body: { title, shift_date, start_time, end_time,
-    #         is_recurring, recurrence_rule,
-    #         positions: [{ role_id, slots_total }] }
-    pass
+    data = request.get_json()
+    conn = get_db()
+    cur  = conn.cursor()
 
+    try:
+        cur.execute("""
+            INSERT INTO shifts (title, shift_date, start_time, end_time,
+                                is_recurring, recurrence_rule, status)
+            VALUES (%s, %s, %s, %s, %s, %s, 'open')
+            RETURNING id
+        """, (
+            data["title"],
+            data["shift_date"],
+            data["start_time"],
+            data["end_time"],
+            data.get("is_recurring", False),
+            data.get("recurrence_rule")
+        ))
+        shift_id = cur.fetchone()["id"]
+
+        # insert positions
+        for position in data.get("positions", []):
+            cur.execute("""
+                INSERT INTO shift_positions (shift_id, role_id, slots_total)
+                VALUES (%s, %s, %s)
+            """, (shift_id, position["role_id"], position["slots_total"]))
+
+        conn.commit()
+        return jsonify({"message": "Shift created", "shift_id": str(shift_id)}), 201
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# PATCH /api/shifts/:id
 @shifts_bp.route("/<uuid:shift_id>", methods=["PATCH"])
+@require_admin
 def update_shift(shift_id):
-    # PATCH /api/shifts/:id
-    pass
+    data = request.get_json()
+    conn = get_db()
+    cur  = conn.cursor()
 
+    try:
+        cur.execute("""
+            UPDATE shifts SET
+                title           = COALESCE(%s, title),
+                shift_date      = COALESCE(%s, shift_date),
+                start_time      = COALESCE(%s, start_time),
+                end_time        = COALESCE(%s, end_time),
+                is_recurring    = COALESCE(%s, is_recurring),
+                recurrence_rule = COALESCE(%s, recurrence_rule),
+                status          = COALESCE(%s, status)
+            WHERE id = %s
+        """, (
+            data.get("title"),
+            data.get("shift_date"),
+            data.get("start_time"),
+            data.get("end_time"),
+            data.get("is_recurring"),
+            data.get("recurrence_rule"),
+            data.get("status"),
+            str(shift_id)
+        ))
+        conn.commit()
+        return jsonify({"message": "Shift updated"}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# DELETE /api/shifts/:id
 @shifts_bp.route("/<uuid:shift_id>", methods=["DELETE"])
+@require_admin
 def cancel_shift(shift_id):
-    # DELETE /api/shifts/:id — sets status to 'cancelled'
-    pass
+    conn = get_db()
+    cur  = conn.cursor()
 
+    try:
+        cur.execute("""
+            UPDATE shifts SET status = 'cancelled' WHERE id = %s
+        """, (str(shift_id),))
+        conn.commit()
+        return jsonify({"message": "Shift cancelled"}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# POST /api/shifts/:id/assign
 @shifts_bp.route("/<uuid:shift_id>/assign", methods=["POST"])
+@require_admin
 def manually_assign(shift_id):
-    # POST /api/shifts/:id/assign
-    # Admin manually assigns a user to a position
-    # body: { user_id, shift_position_id }
-    # optionally sends SMS confirmation request to user
-    pass
+    data              = request.get_json()
+    user_id           = data.get("user_id")
+    shift_position_id = data.get("shift_position_id")
+    send_sms          = data.get("send_confirmation_sms", False)
 
+    conn = get_db()
+    cur  = conn.cursor()
+
+    try:
+        # check position exists and has room
+        cur.execute("""
+            SELECT slots_total, slots_filled FROM shift_positions
+            WHERE id = %s AND shift_id = %s
+        """, (shift_position_id, str(shift_id)))
+        position = cur.fetchone()
+
+        if not position:
+            return jsonify({"error": "Position not found"}), 404
+        if position["slots_filled"] >= position["slots_total"]:
+            return jsonify({"error": "Position is already full"}), 409
+
+        # create assignment
+        cur.execute("""
+            INSERT INTO shift_assignments (shift_position_id, user_id, status)
+            VALUES (%s, %s, 'confirmed')
+            RETURNING id
+        """, (shift_position_id, user_id))
+        assignment_id = cur.fetchone()["id"]
+
+        # update slots_filled
+        cur.execute("""
+            UPDATE shift_positions SET slots_filled = slots_filled + 1
+            WHERE id = %s
+        """, (shift_position_id,))
+
+        # check if shift is now fully filled
+        cur.execute("""
+            UPDATE shifts SET status = 'filled'
+            WHERE id = %s AND NOT EXISTS (
+                SELECT 1 FROM shift_positions
+                WHERE shift_id = %s AND slots_filled < slots_total
+            )
+        """, (str(shift_id), str(shift_id)))
+
+        conn.commit()
+
+        # optionally send confirmation SMS
+        if send_sms:
+            from routes.sms import send_confirmation
+            send_confirmation()
+
+        return jsonify({
+            "message":       "User assigned successfully",
+            "assignment_id": str(assignment_id)
+        }), 201
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# POST /api/shifts/:id/coverage
 @shifts_bp.route("/<uuid:shift_id>/coverage", methods=["POST"])
+@require_admin
 def trigger_coverage(shift_id):
-    # POST /api/shifts/:id/coverage
-    # Admin manually triggers auto-cover engine for a shift
-    pass
+    data              = request.get_json()
+    shift_position_id = data.get("shift_position_id")
 
+    conn = get_db()
+    cur  = conn.cursor()
+
+    try:
+        # get shift details for urgency check
+        cur.execute("""
+            SELECT shift_date, start_time FROM shifts WHERE id = %s
+        """, (str(shift_id),))
+        shift = cur.fetchone()
+        if not shift:
+            return jsonify({"error": "Shift not found"}), 404
+
+        # determine timer — 15min if shift is within 12hrs, 1hr otherwise
+        from datetime import datetime, timezone, timedelta
+        shift_dt     = datetime.combine(shift["shift_date"], shift["start_time"])
+        shift_dt     = shift_dt.replace(tzinfo=timezone.utc)
+        hours_away   = (shift_dt - datetime.now(timezone.utc)).total_seconds() / 3600
+        timer_hours  = 0.25 if hours_away < 12 else 1
+
+        # find a cancelled assignment for this position to link cover request
+        cur.execute("""
+            SELECT id FROM shift_assignments
+            WHERE shift_position_id = %s AND status = 'cancelled'
+            ORDER BY cancelled_at DESC LIMIT 1
+        """, (shift_position_id,))
+        cancelled = cur.fetchone()
+        if not cancelled:
+            return jsonify({"error": "No cancelled assignment found for this position"}), 404
+
+        # create cover request
+        cur.execute("""
+            INSERT INTO cover_requests (shift_assignment_id, status, batch_number, timer_expires_at)
+            VALUES (%s, 'searching', 1, %s)
+            RETURNING id
+        """, (
+            cancelled["id"],
+            datetime.now(timezone.utc) + timedelta(hours=timer_hours)
+        ))
+        cover_request_id = cur.fetchone()["id"]
+
+        # find eligible volunteers:
+        # - has matching role
+        # - available on that day/time
+        # - not already assigned to this shift
+        # - ranked by: least hours volunteered first (burnout prevention),
+        #              then by last_sms_sent_at (prioritize those not texted recently)
+        # TODO: THIS IS IMPORTANT TO KNOW!! CHANGE IF DIFFERENT PRIORITY IS NEEDED.
+        cur.execute("""
+            SELECT DISTINCT u.id, u.name, u.phone,
+                   u.total_hours_volunteered, u.last_sms_sent_at,
+                   ROW_NUMBER() OVER (
+                       ORDER BY u.total_hours_volunteered ASC,
+                                u.last_sms_sent_at ASC NULLS FIRST
+                   ) AS rank
+            FROM users u
+            JOIN user_roles ur ON ur.user_id = u.id
+            JOIN shift_positions sp ON sp.role_id = ur.role_id AND sp.id = %s
+            JOIN availability_recurring ar ON ar.user_id = u.id
+                AND ar.day_of_week = EXTRACT(DOW FROM %s::date)
+                AND ar.start_time <= %s
+                AND ar.end_time   >= %s
+            WHERE u.status = 'active'
+            AND u.is_admin = FALSE
+            AND u.id NOT IN (
+                SELECT sa.user_id FROM shift_assignments sa
+                JOIN shift_positions sp2 ON sp2.id = sa.shift_position_id
+                WHERE sp2.shift_id = %s AND sa.status != 'cancelled'
+            )
+            AND u.id NOT IN (
+                SELECT user_id FROM availability_overrides
+                WHERE override_date = %s AND is_available = FALSE
+            )
+            LIMIT 5
+        """, (
+            shift_position_id,
+            shift["shift_date"],
+            shift["start_time"],
+            shift["end_time"],
+            str(shift_id),
+            shift["shift_date"]
+        ))
+        eligible = cur.fetchall()
+
+        if not eligible:
+            conn.commit()
+            return jsonify({
+                "message":         "Cover request created but no eligible volunteers found",
+                "cover_request_id": str(cover_request_id)
+            }), 200
+
+        # insert outreach rows + send SMS to each
+        shift_dict = dict(shift)
+        for volunteer in eligible:
+            cur.execute("""
+                INSERT INTO cover_outreach (cover_request_id, user_id, rank_in_batch, status)
+                VALUES (%s, %s, %s, 'sent')
+                RETURNING id
+            """, (cover_request_id, volunteer["id"], volunteer["rank"]))
+            outreach_id = cur.fetchone()["id"]
+
+            send_shift_offer_sms(
+                cur,
+                outreach_id=outreach_id,
+                user_id=volunteer["id"],
+                name=volunteer["name"],
+                phone=volunteer["phone"],
+                shift=shift_dict
+            )
+
+            # update last_sms_sent_at
+            cur.execute("""
+                UPDATE users SET last_sms_sent_at = NOW() WHERE id = %s
+            """, (volunteer["id"],))
+
+        conn.commit()
+        return jsonify({
+            "message":          "Coverage outreach started",
+            "cover_request_id": str(cover_request_id),
+            "contacted":        [v["name"] for v in eligible],
+            "timer_hours":      timer_hours
+        }), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+# GET /api/shifts/available?user_id=xxx
 @shifts_bp.route("/available", methods=["GET"])
 def available_shifts():
-    # GET /api/shifts/available?user_id=xxx
-    # Returns shifts filtered by user's availability + qualifications
-    # Used to populate volunteer dashboard
-    pass
+    user_id = request.args.get("user_id")
+
+    if not user_id:
+        return jsonify({"error": "user_id is required"}), 400
+
+    conn = get_db()
+    cur  = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT DISTINCT
+                s.id, s.title, s.shift_date, s.start_time, s.end_time, s.status,
+                sp.id AS position_id,
+                r.name AS role_name,
+                sp.slots_total, sp.slots_filled
+            FROM shifts s
+            JOIN shift_positions sp ON sp.shift_id = s.id
+            JOIN roles r ON r.id = sp.role_id
+            -- volunteer has this qualification
+            JOIN user_roles ur ON ur.role_id = sp.role_id AND ur.user_id = %s
+            -- volunteer is available on this day/time (recurring)
+            JOIN availability_recurring ar ON ar.user_id = %s
+                AND ar.day_of_week = EXTRACT(DOW FROM s.shift_date)
+                AND ar.start_time <= s.start_time
+                AND ar.end_time   >= s.end_time
+            WHERE s.status = 'open'
+            AND s.shift_date >= CURRENT_DATE
+            AND sp.slots_filled < sp.slots_total
+            -- not already assigned
+            AND s.id NOT IN (
+                SELECT sp2.shift_id FROM shift_assignments sa
+                JOIN shift_positions sp2 ON sp2.id = sa.shift_position_id
+                WHERE sa.user_id = %s AND sa.status != 'cancelled'
+            )
+            -- no override blocking this date
+            AND s.shift_date NOT IN (
+                SELECT override_date FROM availability_overrides
+                WHERE user_id = %s AND is_available = FALSE
+            )
+            ORDER BY s.shift_date ASC, s.start_time ASC
+        """, (user_id, user_id, user_id, user_id))
+
+        shifts = cur.fetchall()
+        return jsonify([dict(s) for s in shifts]), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
