@@ -1,5 +1,7 @@
 from flask import Blueprint, request
 
+#POSSIBLY NOT NEEDED, IF MAGIC LINKS ARE USED!!!!!!!!!
+
 sms_bp = Blueprint("sms", __name__)
 
 @sms_bp.route("/reply", methods=["POST"])

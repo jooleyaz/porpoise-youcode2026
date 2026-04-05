@@ -131,6 +131,9 @@ def invite_volunteer():
 @volunteers_bp.route("/<uuid:user_id>", methods=["PATCH"])
 def update_volunteer(user_id):
     # PATCH /api/volunteers/:id — update name, phone, roles
+    conn = get_db()
+    cur  = conn.cursor()
+    
     pass
 
 @volunteers_bp.route("/<uuid:user_id>/availability", methods=["GET"])
