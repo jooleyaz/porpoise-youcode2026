@@ -1,9 +1,12 @@
+from dotenv import load_dotenv
 import os
 from flask import Blueprint, request, jsonify
 from routes.utils import get_db, require_admin, run_cover_engine
 from routes.sms import send_shift_offer_sms
 
 shifts_bp = Blueprint("shifts", __name__)
+load_dotenv() 
+
 
 # NOTE: mainly generated + check over
 

@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify
 from routes.utils import get_db, require_admin, get_twilio
 import os
@@ -7,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 # VOLUNTEERS (users) FUNCTIONS
 
 volunteers_bp = Blueprint("volunteers", __name__)
+load_dotenv() 
 
 @volunteers_bp.route("/", methods=["GET"])
 def list_volunteers():

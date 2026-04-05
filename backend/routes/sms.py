@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from flask import Blueprint, request
 import os
 import uuid
@@ -9,6 +10,7 @@ from routes.send_sms import send_sms, REASON
 #POSSIBLY NOT NEEDED, IF MAGIC LINKS ARE USED!!!!!!!!!
 
 sms_bp = Blueprint("sms", __name__)
+load_dotenv() 
 
 # HELPERS
 

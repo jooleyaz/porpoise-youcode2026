@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 import os
 from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, jsonify
@@ -5,6 +6,7 @@ from routes.utils import get_db, run_cover_engine
 from routes.sms import generate_magic_link, send_shift_offer_sms
 
 assignments_bp = Blueprint("assignments", __name__)
+load_dotenv() 
 
 
 # POST /api/assignments

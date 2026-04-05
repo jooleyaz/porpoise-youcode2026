@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 import os
 import jwt
 from datetime import datetime, timedelta, timezone
@@ -5,6 +6,7 @@ from flask import Blueprint, request, jsonify, redirect
 from routes.utils import get_db
 
 auth_bp = Blueprint("auth", __name__)
+load_dotenv() 
 
 # NOTE: mainly generated + checked over
 # NOTE need to build frontend pages to match the routes!!
