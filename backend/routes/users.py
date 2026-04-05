@@ -231,6 +231,120 @@ def get_availability(user_id):
         cur.close()
         conn.close()
 
+# GET /api/volunteers/:id/stats
+@volunteers_bp.route("/<uuid:user_id>/stats", methods=["GET"])
+def get_stats(user_id):
+    conn = get_db()
+    cur  = conn.cursor()
+
+    try:
+        uid = str(user_id)
+
+        # total confirmed shifts + hours on record
+        cur.execute("""
+            SELECT total_hours_volunteered FROM users WHERE id = %s
+        """, (uid,))
+        user = cur.fetchone()
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+
+        # shifts this calendar month
+        cur.execute("""
+            SELECT COUNT(*) AS count
+            FROM shift_assignments sa
+            JOIN shift_positions sp ON sp.id = sa.shift_position_id
+            JOIN shifts s ON s.id = sp.shift_id
+            WHERE sa.user_id = %s
+            AND sa.status = 'confirmed'
+            AND DATE_TRUNC('month', s.shift_date) = DATE_TRUNC('month', CURRENT_DATE)
+        """, (uid,))
+        shifts_this_month = cur.fetchone()["count"]
+
+        # total confirmed shifts ever
+        cur.execute("""
+            SELECT COUNT(*) AS count
+            FROM shift_assignments sa
+            JOIN shift_positions sp ON sp.id = sa.shift_position_id
+            JOIN shifts s ON s.id = sp.shift_id
+            WHERE sa.user_id = %s AND sa.status = 'confirmed'
+        """, (uid,))
+        total_shifts = cur.fetchone()["count"]
+
+        # streak: consecutive weeks (ending this week) with >= 1 confirmed shift
+        cur.execute("""
+            SELECT DISTINCT DATE_TRUNC('week', s.shift_date)::date AS week_start
+            FROM shift_assignments sa
+            JOIN shift_positions sp ON sp.id = sa.shift_position_id
+            JOIN shifts s ON s.id = sp.shift_id
+            WHERE sa.user_id = %s AND sa.status = 'confirmed'
+            ORDER BY week_start DESC
+        """, (uid,))
+        weeks = [row["week_start"] for row in cur.fetchall()]
+
+        streak_weeks = 0
+        from datetime import date, timedelta
+        current_week = date.today() - timedelta(days=date.today().weekday())
+        for i, w in enumerate(weeks):
+            expected = current_week - timedelta(weeks=i)
+            if w == expected:
+                streak_weeks += 1
+            else:
+                break
+
+        # percentile rank among active volunteers by shifts this month
+        cur.execute("""
+            WITH monthly AS (
+                SELECT sa.user_id, COUNT(*) AS shift_count
+                FROM shift_assignments sa
+                JOIN shift_positions sp ON sp.id = sa.shift_position_id
+                JOIN shifts s ON s.id = sp.shift_id
+                WHERE sa.status = 'confirmed'
+                AND DATE_TRUNC('month', s.shift_date) = DATE_TRUNC('month', CURRENT_DATE)
+                GROUP BY sa.user_id
+            )
+            SELECT ROUND(
+                100.0 * (
+                    SELECT COUNT(*) FROM monthly WHERE shift_count <= (
+                        SELECT COALESCE(shift_count, 0) FROM monthly WHERE user_id = %s
+                    )
+                ) / NULLIF((SELECT COUNT(*) FROM monthly), 0)
+            ) AS percentile
+        """, (uid,))
+        row = cur.fetchone()
+        percentile = int(row["percentile"]) if row and row["percentile"] else 50
+
+        # opening shifts: shifts where the volunteer was first to sign up for that position
+        cur.execute("""
+            SELECT COUNT(*) AS count
+            FROM shift_assignments sa
+            WHERE sa.user_id = %s
+            AND sa.status = 'confirmed'
+            AND sa.id = (
+                SELECT id FROM shift_assignments
+                WHERE shift_position_id = sa.shift_position_id
+                AND status != 'cancelled'
+                ORDER BY assigned_at ASC
+                LIMIT 1
+            )
+        """, (uid,))
+        opening_shifts = cur.fetchone()["count"]
+
+        return jsonify({
+            "shifts_this_month":       shifts_this_month,
+            "total_shifts":            total_shifts,
+            "total_hours":             float(user["total_hours_volunteered"] or 0),
+            "streak_weeks":            streak_weeks,
+            "percentile":              percentile,
+            "opening_shifts":          opening_shifts,
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 # TODO: check identity of user updating based on jwt, if want extra security (no need for hackathon though)
 @volunteers_bp.route("/<uuid:user_id>/availability", methods=["POST"])
 def set_availability(user_id):

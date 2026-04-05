@@ -78,17 +78,46 @@ def send_shift_offer_sms(cur, outreach_id, user_id, name, phone, shift):
     """, (user_id, body))
 
 
-def send_reminder_sms(phone, name, shift):
-    link = generate_static_link() #TODO implement this
+def send_confirmation_sms(cur, user_id, assignment_id):
+    """Helper called by manually_assign to text a volunteer their confirmation."""
+    cur.execute("SELECT id, name, phone FROM users WHERE id = %s", (user_id,))
+    user = cur.fetchone()
+    if not user:
+        return
+
+    cur.execute("""
+        SELECT s.shift_date, s.start_time, r.name AS title
+        FROM shift_assignments sa
+        JOIN shift_positions sp ON sp.id = sa.shift_position_id
+        JOIN shifts s ON s.id = sp.shift_id
+        JOIN roles r ON r.id = sp.role_id
+        WHERE sa.id = %s
+    """, (assignment_id,))
+    shift = cur.fetchone()
+    if not shift:
+        return
+
+    link = generate_magic_link(cur, user_id, link_type="confirm_assignment", expires_hours=24)
     body = send_sms(
-        phone,
+        user["phone"],
         REASON.REMINDER,
         link,
         "Sprouts",
-        shift_date=shift['shift_date'],
-        shift_time=shift['start_time'],
-        shift_role=shift['title'],
-        name=name)
+        shift_date=shift["shift_date"],
+        shift_time=shift["start_time"],
+        shift_role=shift["title"],
+        name=user["name"],
+    )
+    cur.execute("""
+        INSERT INTO sms_log (user_id, message_type, body, status)
+        VALUES (%s, 'confirmation', %s, 'sent')
+    """, (user_id, body))
+
+
+def send_reminder_sms(phone, name, shift):
+    # Link generation for reminders not yet implemented — skip SMS silently
+    # TODO: generate a dashboard link once static URLs are established
+    pass
 
 # FUNCTIONS
 

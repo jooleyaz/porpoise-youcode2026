@@ -20,6 +20,8 @@ def list_shifts():
     cur  = conn.cursor()
 
     try:
+        user_id = request.args.get("user_id")
+
         query = """
             SELECT
                 s.id, s.title, s.shift_date, s.start_time, s.end_time,
@@ -31,7 +33,17 @@ def list_shifts():
                             'role_id',      sp.role_id,
                             'role_name',    r.name,
                             'slots_total',  sp.slots_total,
-                            'slots_filled', sp.slots_filled
+                            'slots_filled', sp.slots_filled,
+                            'assignments',  COALESCE((
+                                SELECT json_agg(json_build_object(
+                                    'assignment_id', sa.id,
+                                    'user_id',       sa.user_id,
+                                    'status',        sa.status
+                                ))
+                                FROM shift_assignments sa
+                                WHERE sa.shift_position_id = sp.id
+                                AND sa.status != 'cancelled'
+                            ), '[]'::json)
                         )
                     ) FILTER (WHERE sp.id IS NOT NULL), '[]'
                 ) AS positions
@@ -48,6 +60,15 @@ def list_shifts():
         if status:
             query += " AND s.status = %s"
             params.append(status)
+        if user_id:
+            query += """
+                AND s.id IN (
+                    SELECT sp2.shift_id FROM shift_assignments sa2
+                    JOIN shift_positions sp2 ON sp2.id = sa2.shift_position_id
+                    WHERE sa2.user_id = %s AND sa2.status != 'cancelled'
+                )
+            """
+            params.append(user_id)
 
         query += " GROUP BY s.id ORDER BY s.shift_date ASC, s.start_time ASC"
 
@@ -272,8 +293,8 @@ def manually_assign(shift_id):
 
         # optionally send confirmation SMS
         if send_sms:
-            from routes.sms import send_confirmation
-            send_confirmation()
+            from routes.sms import send_confirmation_sms
+            send_confirmation_sms(cur, user_id, str(assignment_id))
 
         return jsonify({
             "message":       "User assigned successfully",
@@ -306,16 +327,23 @@ def trigger_coverage(shift_id):
         if not shift:
             return jsonify({"error": "Shift not found"}), 404
 
+        # look up the role for this position
+        cur.execute("SELECT role_id, end_time FROM shift_positions WHERE id = %s AND shift_id = %s",
+                    (shift_position_id, str(shift_id)))
+        position = cur.fetchone()
+        if not position:
+            return jsonify({"error": "Position not found"}), 404
+
         result = run_cover_engine(
             cur,
-            assignment_id=str(cancelled["id"]),
+            assignment_id=None,  # admin-triggered, no specific cancelled assignment
             shift_id=str(shift_id),
             shift_position_id=shift_position_id,
-            role_id=cover["role_id"],
+            role_id=str(position["role_id"]),
             shift_date=shift["shift_date"],
             start_time=shift["start_time"],
-            end_time=shift["end_time"],
-            excluded_user_id=None  # no one to exclude, admin triggered this manually
+            end_time=position["end_time"],
+            excluded_user_id=None
         )
 
         conn.commit()

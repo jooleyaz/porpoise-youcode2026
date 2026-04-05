@@ -71,7 +71,7 @@ def run_cover_engine(cur, assignment_id, shift_id, shift_position_id, role_id, s
             AND ar.end_time   >= %s
         WHERE u.status = 'active'
         AND u.is_admin = FALSE
-        AND u.id != %s
+        AND (%s IS NULL OR u.id != %s)
         AND u.id NOT IN (
             SELECT sa.user_id FROM shift_assignments sa
             JOIN shift_positions sp ON sp.id = sa.shift_position_id
@@ -84,7 +84,7 @@ def run_cover_engine(cur, assignment_id, shift_id, shift_position_id, role_id, s
         AND (u.last_sms_sent_at IS NULL OR
              u.last_sms_sent_at < NOW() - INTERVAL '7 days')
         LIMIT 5
-    """, (role_id, shift_date, start_time, end_time, excluded_user_id, shift_id, shift_date))
+    """, (role_id, shift_date, start_time, end_time, excluded_user_id, excluded_user_id, shift_id, shift_date))
     eligible = cur.fetchall()
 
     shift_dict = {

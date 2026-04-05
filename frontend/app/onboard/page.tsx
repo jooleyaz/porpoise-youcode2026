@@ -91,7 +91,7 @@ export default function OnboardPage(props: { searchParams: Promise<{ jwt?: strin
         <Image src="/logos/banner.png" alt="Porpoise" width={160} height={56} className="object-contain" />
         <div className="text-[18px] font-semibold text-[#3D4975]">Welcome to your new volunteer experience!</div>
         <div className="text-[12px] text-[#5a6490] leading-relaxed">
-          You&rsquo;ve been invited to join the team at Sprouts Cafe. Set up takes about 2 minutes.
+          You&rsquo;ve been invited to join the team at Sprouts. Set up takes about 2 minutes.
         </div>
         <div className="bg-[#C2CAE7] rounded-xl px-4 py-[10px] w-full text-left">
           <div className="text-[11px] text-[#5a6490]">Invited as</div>

@@ -12,6 +12,7 @@ import type { Shift } from '@/types'
 export default function PickupPage() {
   const router = useRouter()
   const [shifts, setShifts] = useState<Shift[]>([])
+  const [loading, setLoading] = useState(true)
   const [claiming, setClaiming] = useState<string | null>(null)
   const [claimed, setClaimed] = useState<Set<string>>(new Set())
 
@@ -34,6 +35,7 @@ export default function PickupPage() {
         } as Shift,
       ])
       .then(setShifts)
+      .finally(() => setLoading(false))
   }, [router])
 
   async function handleClaim(shift: Shift) {
@@ -56,7 +58,11 @@ export default function PickupPage() {
     <PageShell>
       <BackRow title="Available" boldPart="shifts" href="/dashboard" />
 
-      {shifts.length === 0 ? (
+      {loading ? (
+        <div className="text-[12px] text-[#9aa0bc] text-center mt-8">
+          Loading shifts…
+        </div>
+      ) : shifts.length === 0 ? (
         <div className="text-[12px] text-[#9aa0bc] text-center mt-8">
           No available shifts right now. Check back soon!
         </div>

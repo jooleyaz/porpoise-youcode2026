@@ -71,6 +71,22 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* ── Wrapped ───────────────────────────────────────────────────────── */}
+      {!isAdmin && (
+        <section>
+          <button
+            onClick={() => router.push('/wrapped')}
+            className="w-full bg-[#3D4975] rounded-xl px-[14px] py-[12px] flex items-center justify-between"
+          >
+            <div className="text-left">
+              <div className="text-[13px] font-semibold text-white">Your monthly recap 🌊</div>
+              <div className="text-[10px] text-[#8a96c0] mt-[1px]">See how you made waves last month</div>
+            </div>
+            <span className="text-white text-[18px] opacity-60">→</span>
+          </button>
+        </section>
+      )}
+
       {/* ── Badges ────────────────────────────────────────────────────────── */}
       <section>
         <div className="text-[12px] font-semibold text-[#2a2a3d] mb-[6px]">Badges</div>

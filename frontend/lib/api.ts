@@ -12,7 +12,7 @@ import type {
   Session,
 } from '@/types'
 
-const BASE = 'http://localhost:5000'
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000'
 
 function authHeaders(): HeadersInit {
   const session = getSession()
@@ -147,6 +147,19 @@ export async function updateVolunteer(id: string, body: Partial<User>): Promise<
   })
 }
 
+export interface VolunteerStats {
+  shifts_this_month: number
+  total_shifts: number
+  total_hours: number
+  streak_weeks: number
+  percentile: number
+  opening_shifts: number
+}
+
+export async function getVolunteerStats(id: string): Promise<VolunteerStats> {
+  return request<VolunteerStats>(`/api/volunteers/${id}/stats`)
+}
+
 export async function getAvailability(id: string): Promise<{ recurring: AvailabilityRecurring[]; overrides: AvailabilityOverride[] }> {
   return request(`/api/volunteers/${id}/availability`)
 }
@@ -193,7 +206,20 @@ export async function cancelShift(id: string): Promise<{ message: string }> {
 
 export async function getAvailableShifts(userId: string): Promise<Shift[]> {
   const raw = await request<Record<string, unknown>[]>(`/api/shifts/available?user_id=${userId}`)
-  return raw.map(mapShift)
+  // Backend returns flat rows (one per shift-position), not nested positions[].
+  // Reconstruct the nested shape so pickup page can read shift.positions[0].id.
+  return raw.map(row => ({
+    ...mapShift(row),
+    positions: [{
+      id:           row.position_id as string,
+      shift_id:     row.id as string,
+      role_id:      row.role_id as string,
+      role:         { id: row.role_id as string, name: row.role_name as string },
+      slots_total:  row.slots_total as number,
+      slots_filled: row.slots_filled as number,
+      assignments:  [],
+    }],
+  }))
 }
 
 export async function assignVolunteer(shiftId: string, body: { user_id: string; shift_position_id: string }): Promise<ShiftAssignment> {
