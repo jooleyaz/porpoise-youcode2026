@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_cors import CORS
 from dotenv import load_dotenv
 load_dotenv()
 from routes.users import volunteers_bp
@@ -6,6 +7,8 @@ from routes.shifts import shifts_bp
 from routes.assignments import assignments_bp
 from routes.sms import sms_bp
 from routes.auth import auth_bp
+
+CORS(app, origins=["https://porpoise-youcode2026.vercel.app"])
 
 app = Flask(__name__)
 
