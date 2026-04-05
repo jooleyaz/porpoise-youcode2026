@@ -8,9 +8,8 @@ from routes.assignments import assignments_bp
 from routes.sms import sms_bp
 from routes.auth import auth_bp
 
-CORS(app, origins=["https://porpoise-youcode2026.vercel.app"])
-
 app = Flask(__name__)
+CORS(app, origins=["https://porpoise-youcode2026.vercel.app"])
 
 app.register_blueprint(volunteers_bp, url_prefix="/api/volunteers")
 app.register_blueprint(shifts_bp, url_prefix="/api/shifts")
