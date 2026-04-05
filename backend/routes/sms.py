@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from routes.utils import get_db, get_twilio, require_admin
 from routes.send_sms import send_sms, REASON
+import argostranslate.translate as translate
 
 #POSSIBLY NOT NEEDED, IF MAGIC LINKS ARE USED!!!!!!!!!
 
@@ -50,7 +51,7 @@ def generate_cover_outreach_link(cur, outreach_id, expires_hours=1):
 
 def send_invite_sms(cur, user_id, name, phone):
     link = generate_magic_link(cur, user_id, link_type="onboard", expires_hours=48)
-    body = send_sms(phone, REASON.INVITE, link, "Sprouts",name=name)
+    body = translate(send_sms(phone, REASON.INVITE, link, "Sprouts",name=name),'en', user_language_code) #TODO add this as a field 
 
     cur.execute("""
         INSERT INTO sms_log (user_id, message_type, body, status)
@@ -60,7 +61,7 @@ def send_invite_sms(cur, user_id, name, phone):
 
 def send_shift_offer_sms(cur, outreach_id, user_id, name, phone, shift):
     link = generate_cover_outreach_link(cur, outreach_id, expires_hours=1)
-    body = send_sms(
+    body = translate(send_sms(
         phone,
         REASON.SHIFTREADY,
         link,
@@ -68,7 +69,7 @@ def send_shift_offer_sms(cur, outreach_id, user_id, name, phone, shift):
         shift_date=shift['shift_date'],
         shift_time=shift['start_time'],
         shift_role=shift['title'],
-        name=name)
+        name=name),'en', user_language_code)#TODO add this as a field 
 
     cur.execute("""
         INSERT INTO sms_log (user_id, message_type, body, status)
@@ -78,7 +79,7 @@ def send_shift_offer_sms(cur, outreach_id, user_id, name, phone, shift):
 
 def send_reminder_sms(phone, name, shift):
     link = generate_static_link() #TODO implement this
-    body = send_sms(
+    body = translate(send_sms(
         phone,
         REASON.REMINDER,
         link,
@@ -86,7 +87,7 @@ def send_reminder_sms(phone, name, shift):
         shift_date=shift['shift_date'],
         shift_time=shift['start_time'],
         shift_role=shift['title'],
-        name=name)
+        name=name), 'en', user_language_code)#TODO add this as a field 
 
 # FUNCTIONS
 
