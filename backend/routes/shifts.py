@@ -1,6 +1,6 @@
 import os
 from flask import Blueprint, request, jsonify
-from utils import get_db, require_admin
+from utils import get_db, require_admin, run_cover_engine
 from routes.sms import send_shift_offer_sms
 
 shifts_bp = Blueprint("shifts", __name__)
@@ -310,114 +310,24 @@ def trigger_coverage(shift_id):
         if not shift:
             return jsonify({"error": "Shift not found"}), 404
 
-        # determine timer — 15min if shift is within 12hrs, 1hr otherwise
-        from datetime import datetime, timezone, timedelta
-        shift_dt     = datetime.combine(shift["shift_date"], shift["start_time"])
-        shift_dt     = shift_dt.replace(tzinfo=timezone.utc)
-        hours_away   = (shift_dt - datetime.now(timezone.utc)).total_seconds() / 3600
-        timer_hours  = 0.25 if hours_away < 12 else 1
-
-        # find a cancelled assignment for this position to link cover request
-        cur.execute("""
-            SELECT id FROM shift_assignments
-            WHERE shift_position_id = %s AND status = 'cancelled'
-            ORDER BY cancelled_at DESC LIMIT 1
-        """, (shift_position_id,))
-        cancelled = cur.fetchone()
-        if not cancelled:
-            return jsonify({"error": "No cancelled assignment found for this position"}), 404
-
-        # create cover request
-        cur.execute("""
-            INSERT INTO cover_requests (shift_assignment_id, status, batch_number, timer_expires_at)
-            VALUES (%s, 'searching', 1, %s)
-            RETURNING id
-        """, (
-            cancelled["id"],
-            datetime.now(timezone.utc) + timedelta(hours=timer_hours)
-        ))
-        cover_request_id = cur.fetchone()["id"]
-
-        # find eligible volunteers:
-        # - has matching role
-        # - available on that day/time
-        # - not already assigned to this shift
-        # - ranked by: least hours volunteered first (burnout prevention),
-        #              then by last_sms_sent_at (prioritize those not texted recently)
-        # TODO: THIS IS IMPORTANT TO KNOW!! CHANGE IF DIFFERENT PRIORITY IS NEEDED.
-        cur.execute("""
-            SELECT DISTINCT u.id, u.name, u.phone,
-                   u.total_hours_volunteered, u.last_sms_sent_at,
-                   ROW_NUMBER() OVER (
-                       ORDER BY u.total_hours_volunteered ASC,
-                                u.last_sms_sent_at ASC NULLS FIRST
-                   ) AS rank
-            FROM users u
-            JOIN user_roles ur ON ur.user_id = u.id
-            JOIN shift_positions sp ON sp.role_id = ur.role_id AND sp.id = %s
-            JOIN availability_recurring ar ON ar.user_id = u.id
-                AND ar.day_of_week = EXTRACT(DOW FROM %s::date)
-                AND ar.start_time <= %s
-                AND ar.end_time   >= %s
-            WHERE u.status = 'active'
-            AND u.is_admin = FALSE
-            AND u.id NOT IN (
-                SELECT sa.user_id FROM shift_assignments sa
-                JOIN shift_positions sp2 ON sp2.id = sa.shift_position_id
-                WHERE sp2.shift_id = %s AND sa.status != 'cancelled'
-            )
-            AND u.id NOT IN (
-                SELECT user_id FROM availability_overrides
-                WHERE override_date = %s AND is_available = FALSE
-            )
-            LIMIT 5
-        """, (
-            shift_position_id,
-            shift["shift_date"],
-            shift["start_time"],
-            shift["end_time"],
-            str(shift_id),
-            shift["shift_date"]
-        ))
-        eligible = cur.fetchall()
-
-        if not eligible:
-            conn.commit()
-            return jsonify({
-                "message":         "Cover request created but no eligible volunteers found",
-                "cover_request_id": str(cover_request_id)
-            }), 200
-
-        # insert outreach rows + send SMS to each
-        shift_dict = dict(shift)
-        for volunteer in eligible:
-            cur.execute("""
-                INSERT INTO cover_outreach (cover_request_id, user_id, rank_in_batch, status)
-                VALUES (%s, %s, %s, 'sent')
-                RETURNING id
-            """, (cover_request_id, volunteer["id"], volunteer["rank"]))
-            outreach_id = cur.fetchone()["id"]
-
-            send_shift_offer_sms(
-                cur,
-                outreach_id=outreach_id,
-                user_id=volunteer["id"],
-                name=volunteer["name"],
-                phone=volunteer["phone"],
-                shift=shift_dict
-            )
-
-            # update last_sms_sent_at
-            cur.execute("""
-                UPDATE users SET last_sms_sent_at = NOW() WHERE id = %s
-            """, (volunteer["id"],))
+        result = run_cover_engine(
+            cur,
+            assignment_id=str(cancelled["id"]),
+            shift_id=str(shift_id),
+            shift_position_id=shift_position_id,
+            role_id=cover["role_id"],
+            shift_date=shift["shift_date"],
+            start_time=shift["start_time"],
+            end_time=shift["end_time"],
+            excluded_user_id=None  # no one to exclude, admin triggered this manually
+        )
 
         conn.commit()
         return jsonify({
             "message":          "Coverage outreach started",
-            "cover_request_id": str(cover_request_id),
-            "contacted":        [v["name"] for v in eligible],
-            "timer_hours":      timer_hours
+            "cover_request_id": result["cover_request_id"],
+            "contacted":        result["contacted"],
+            "timer_hours":      result["timer_hours"]
         }), 200
 
     except Exception as e:
