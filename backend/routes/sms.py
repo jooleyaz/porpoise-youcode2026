@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
 from utils import get_db, get_twilio, require_admin
+from send_sms import send_sms, REASON
 
 #POSSIBLY NOT NEEDED, IF MAGIC LINKS ARE USED!!!!!!!!!
 
@@ -49,13 +50,7 @@ def generate_cover_outreach_link(cur, outreach_id, expires_hours=1):
 
 def send_invite_sms(cur, user_id, name, phone):
     link = generate_magic_link(cur, user_id, link_type="onboard", expires_hours=48)
-    body = (f"Hi {name}! {link}") # TODO: put spiel here
-
-    get_twilio().messages.create(
-        to=phone,
-        from_=os.getenv("TWILIO_PHONENUMBER"),
-        body=body
-    )
+    body = send_sms(phone, REASON.INVITE, link, "Sprouts",name=name)
 
     cur.execute("""
         INSERT INTO sms_log (user_id, message_type, body, status)

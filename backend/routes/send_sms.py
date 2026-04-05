@@ -11,7 +11,7 @@ class REASON(Enum):
     REMINDER = 'REMINDER'
     SHIFTREADY = 'SHIFTREADY'
 
-def send_sms(recipient_number:str, reason:REASON, link:str, orgname:str, shift_date:str=None, shift_time:str=None, shift_role:str=None):
+def send_sms(recipient_number:str, reason:REASON, link:str, orgname:str, shift_date:str=None, shift_time:str=None, shift_role:str=None, name:str=None):
     load_dotenv()
 
     twilio_sid = os.getenv("TWILIO_SID")
@@ -23,7 +23,7 @@ def send_sms(recipient_number:str, reason:REASON, link:str, orgname:str, shift_d
     body = ''
     match reason:
         case REASON.INVITE: 
-            body = 'You have been invited to join ORG\'s team! Click here to get started. LINK'
+            body = 'Hey NAME, you have been invited to join ORG\'s team! Click here to get started. LINK'
         case REASON.SCHEDULEREADY:
             body = 'Your schedule is ready! Click here to confirm that you can make your shifts, or drop them if needed. LINK'
         case REASON.REMINDER:
@@ -38,7 +38,7 @@ def send_sms(recipient_number:str, reason:REASON, link:str, orgname:str, shift_d
         to=recipient_number,
     )
 
-    return message.body
+    return body
 
 # if __name__ == '__main__':
 #     print(send_sms("", REASON.SCHEDULEREADY, "linkylink", "Sprouts"))
