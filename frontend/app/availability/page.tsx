@@ -40,7 +40,7 @@ export default function AvailabilityPage() {
   return (
     <PageShell>
       <BackRow title="Change your" boldPart="availability" href="/dashboard" />
-      <div className="text-[10px] text-[#9aa0bc]">Tap to toggle. Green = available, striped = busy.</div>
+      <div className="text-[10px] text-[#9aa0bc]">Tap or drag to mark when you&rsquo;re on call. Striped = tentative.</div>
       <AvailGrid onChange={setGrid} />
       <Button variant="primary" onClick={handleSave} disabled={saving}>
         {saved ? 'Saved ✓' : saving ? 'Saving…' : 'Save availability'}

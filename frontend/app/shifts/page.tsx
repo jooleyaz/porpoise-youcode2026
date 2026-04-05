@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PageShell from '@/components/layout/PageShell'
-import Image from 'next/image'
 import Button from '@/components/ui/Button'
 import StatCard from '@/components/admin/StatCard'
 import ChartArea from '@/components/admin/ChartArea'
@@ -64,10 +63,9 @@ export default function AdminShiftsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-[17px] text-[#2a2a3d]">Hello <strong>Admin!</strong></div>
+          <div className="text-[17px] text-[#2a2a3d]">Hello <strong>Admin!</strong> 👋</div>
           <div className="hidden md:block text-[11px] text-[#9aa0bc] mt-0.5">May 2026</div>
         </div>
-        <Image src="/logos/main.png" alt="Porpoise" width={72} height={24} className="object-contain opacity-60 md:hidden" />
       </div>
 
       {/* Stat cards — row on desktop */}

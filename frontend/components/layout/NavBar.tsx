@@ -29,7 +29,6 @@ export default function NavBar() {
   const volunteerLinks = [
     { label: 'Dashboard', href: '/dashboard' },
     { label: 'My shifts', href: '/my-shifts' },
-    { label: 'Availability', href: '/availability' },
   ]
 
   const links = session.isAdmin ? adminLinks : volunteerLinks

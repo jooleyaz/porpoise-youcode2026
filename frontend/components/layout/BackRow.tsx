@@ -1,7 +1,6 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 
 interface BackRowProps {
   title?: string
@@ -30,11 +29,6 @@ export default function BackRow({ title, boldPart, showIcon = false, href }: Bac
       {title && (
         <div className="text-[16px] text-[#2a2a3d]">
           {title}{boldPart && <> <strong>{boldPart}</strong></>}
-        </div>
-      )}
-      {showIcon && (
-        <div className="ml-auto">
-          <Image src="/logos/main.png" alt="Porpoise" width={72} height={24} className="object-contain opacity-60" />
         </div>
       )}
     </div>

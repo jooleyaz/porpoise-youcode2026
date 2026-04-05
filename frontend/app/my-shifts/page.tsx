@@ -132,11 +132,10 @@ export default function MyShiftsPage() {
 
       {/* Legend */}
       <div className="flex gap-[10px] text-[10px] text-[#5a6490]">
-        <div className="flex items-center gap-1"><div className="w-[10px] h-[10px] rounded bg-[#C2CAE7]" /> Your shift</div>
-        <div className="flex items-center gap-1"><div className="w-[10px] h-[10px] rounded bg-[#eef8f2]" /> Available</div>
+        <div className="flex items-center gap-1"><div className="w-[10px] h-[10px] rounded bg-[#bde8c8]" /> Scheduled</div>
         <div className="flex items-center gap-1">
-          <div className="w-[10px] h-[10px] rounded" style={{ background: 'repeating-linear-gradient(45deg,#e8d9b8,#e8d9b8 2px,#f5eedd 2px,#f5eedd 5px)' }} />
-          Busy
+          <div className="w-[10px] h-[10px] rounded" style={{ background: 'repeating-linear-gradient(45deg,#e8c96a,#e8c96a 2px,#fdf3c0 2px,#fdf3c0 5px)' }} />
+          On call
         </div>
       </div>
 
@@ -171,20 +170,17 @@ export default function MyShiftsPage() {
               const startsHere = shiftStartsAt(dayIdx, hour)
               const avail = isAvail(dayIdx, hour)
 
-              let cellBg = ''
-              if (shift) {
-                cellBg = 'bg-[#C2CAE7]'
-              } else if (avail) {
-                cellBg = 'bg-[#eef8f2]'
-              } else {
-                cellBg = ''
-              }
+              const cellStyle = shift
+                ? { background: '#bde8c8' }
+                : avail
+                ? { background: 'repeating-linear-gradient(45deg, #e8c96a, #e8c96a 3px, #fdf3c0 3px, #fdf3c0 6px)' }
+                : {}
 
               return (
                 <div
                   key={dayIdx}
-                  className={`h-[28px] border-l border-[#f0f2f6] relative ${cellBg}`}
-                  style={!shift && !avail ? { background: 'repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(232,217,184,0.3) 4px,rgba(232,217,184,0.3) 8px)' } : undefined}
+                  className="h-[28px] border-l border-[#f0f2f6] relative"
+                  style={cellStyle}
                 >
                   {startsHere && (
                     <div className="absolute inset-x-0 top-0 px-[3px] py-[2px] z-10">

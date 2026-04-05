@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import PageShell from '@/components/layout/PageShell'
-import Image from 'next/image'
 import Button from '@/components/ui/Button'
 import ChartArea from '@/components/admin/ChartArea'
 import { getSession } from '@/lib/session'
@@ -73,14 +72,13 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between">
         <div>
           <div className="text-[17px] text-[#2a2a3d]">
-            <span className="hidden md:inline">Welcome back, <strong>{name}</strong></span>
-            <span className="md:hidden">Hello <strong>{name}!</strong></span>
+            <span className="hidden md:inline">Welcome back, <strong>{name}</strong> 👋</span>
+            <span className="md:hidden">Hello <strong>{name}</strong> 👋</span>
           </div>
           <div className="hidden md:block text-[11px] text-[#9aa0bc] mt-0.5">
             You&rsquo;ve volunteered {shiftsThisMonth} times this month — the team appreciates every single one.
           </div>
         </div>
-        <Image src="/logos/main.png" alt="Porpoise" width={72} height={24} className="object-contain opacity-60 md:hidden" />
         <button
           onClick={() => router.push('/pickup')}
           className="hidden md:block bg-[#3D4975] text-white rounded-lg px-[12px] py-[5px] text-[11px] font-medium"
@@ -192,10 +190,6 @@ export default function DashboardPage() {
       {/* Action buttons */}
       <div className="md:hidden flex flex-col gap-[8px]">
         <Button variant="primary" onClick={() => router.push('/pickup')}>Pick up a shift</Button>
-        <Button variant="ghost" onClick={() => router.push('/availability')}>Change availability</Button>
-      </div>
-      <div className="hidden md:flex gap-[8px]">
-        <Button variant="ghost" onClick={() => router.push('/availability')}>Edit availability</Button>
       </div>
 
       <ChartArea title="Your shifts per month" />
