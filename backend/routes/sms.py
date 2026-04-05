@@ -60,13 +60,15 @@ def send_invite_sms(cur, user_id, name, phone):
 
 def send_shift_offer_sms(cur, outreach_id, user_id, name, phone, shift):
     link = generate_cover_outreach_link(cur, outreach_id, expires_hours=1)
-    body = (f"{name} {shift['title']} {shift['shift_date']} at {shift['start_time']} accept {link}") # TODO: ADD SPIEL!
-
-    get_twilio().messages.create(
-        to=phone,
-        from_=os.getenv("TWILIO_PHONENUMBER"),
-        body=body
-    )
+    body = send_sms(
+        phone,
+        REASON.SHIFTREADY,
+        link,
+        "Sprouts",
+        shift_date=shift['shift_date'],
+        shift_time=shift['start_time'],
+        shift_role=shift['title'],
+        name=name)
 
     cur.execute("""
         INSERT INTO sms_log (user_id, message_type, body, status)
@@ -75,15 +77,16 @@ def send_shift_offer_sms(cur, outreach_id, user_id, name, phone, shift):
 
 
 def send_reminder_sms(phone, name, shift):
-    body = (
-        f"{name},{shift['title']} {shift['start_time']}" #TODO: ADD SPIEL!!
-    )
-
-    get_twilio().messages.create(
-        to=phone,
-        from_=os.getenv("TWILIO_PHONENUMBER"),
-        body=body
-    )
+    link = generate_static_link() #TODO implement this
+    body = send_sms(
+        phone,
+        REASON.REMINDER,
+        link,
+        "Sprouts",
+        shift_date=shift['shift_date'],
+        shift_time=shift['start_time'],
+        shift_role=shift['title'],
+        name=name)
 
 # FUNCTIONS
 
