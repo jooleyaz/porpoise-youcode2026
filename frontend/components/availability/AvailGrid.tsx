@@ -137,14 +137,14 @@ export default function AvailGrid({ initialGrid = {}, onChange }: AvailGridProps
 }
 
 // Helper: convert GridState → AvailabilityRecurring array for API
-export function gridToAvailability(grid: GridState): { day_of_week: number; start_time: string; end_time: string }[] {
-  const result: { day_of_week: number; start_time: string; end_time: string }[] = []
+export function gridToAvailability(grid: GridState): { day_of_week: 0 | 1 | 2 | 3 | 4 | 5 | 6; start_time: string; end_time: string }[] {
+  const result: { day_of_week: 0 | 1 | 2 | 3 | 4 | 5 | 6; start_time: string; end_time: string }[] = []
   for (const key of Object.keys(grid)) {
     if (grid[key] !== 'oncall') continue
     const [dayStr, hourStr] = key.split('-')
     const hour = parseInt(hourStr)
     result.push({
-      day_of_week: parseInt(dayStr),
+      day_of_week: parseInt(dayStr) as 0 | 1 | 2 | 3 | 4 | 5 | 6,
       start_time: `${String(hour).padStart(2, '0')}:00`,
       end_time:   `${String(hour + 1).padStart(2, '0')}:00`,
     })

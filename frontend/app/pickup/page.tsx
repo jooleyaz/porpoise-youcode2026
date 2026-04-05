@@ -45,7 +45,7 @@ export default function PickupPage() {
     if (!session) return
     setClaiming(shift.id)
     try {
-      await acceptShift({ shift_position_id: positionId, user_id: session.userId })
+      await acceptShift({ shift_position_id: positionId })
       setClaimed(prev => new Set([...prev, shift.id]))
     } catch {
       setClaimed(prev => new Set([...prev, shift.id])) // dev
