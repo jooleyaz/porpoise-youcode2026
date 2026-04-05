@@ -2,7 +2,7 @@ import os
 import jwt
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, redirect
-from utils import get_db
+from routes.utils import get_db
 
 auth_bp = Blueprint("auth", __name__)
 

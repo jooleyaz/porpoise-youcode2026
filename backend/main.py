@@ -1,6 +1,6 @@
 from flask import Flask
 from dotenv import load_dotenv
-from routes.volunteers import volunteers_bp
+from routes.users import volunteers_bp
 from routes.shifts import shifts_bp
 from routes.assignments import assignments_bp
 from routes.sms import sms_bp

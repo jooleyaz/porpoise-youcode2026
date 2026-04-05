@@ -1,6 +1,6 @@
 import os
 from flask import Blueprint, request, jsonify
-from utils import get_db, require_admin, run_cover_engine
+from routes.utils import get_db, require_admin, run_cover_engine
 from routes.sms import send_shift_offer_sms
 
 shifts_bp = Blueprint("shifts", __name__)
@@ -9,7 +9,6 @@ shifts_bp = Blueprint("shifts", __name__)
 
 # GET /api/shifts?date=2026-04-01&status=open
 @shifts_bp.route("/", methods=["GET"])
-@require_admin
 def list_shifts():
     date   = request.args.get("date")
     status = request.args.get("status")
@@ -62,7 +61,6 @@ def list_shifts():
 
 # GET /api/shifts/:id
 @shifts_bp.route("/<uuid:shift_id>", methods=["GET"])
-@require_admin
 def get_shift(shift_id):
     conn = get_db()
     cur  = conn.cursor()
@@ -121,7 +119,6 @@ def get_shift(shift_id):
 
 # POST /api/shifts
 @shifts_bp.route("/", methods=["POST"])
-@require_admin
 def create_shift():
     data = request.get_json()
     conn = get_db()
@@ -163,7 +160,6 @@ def create_shift():
 
 # PATCH /api/shifts/:id
 @shifts_bp.route("/<uuid:shift_id>", methods=["PATCH"])
-@require_admin
 def update_shift(shift_id):
     data = request.get_json()
     conn = get_db()
@@ -203,7 +199,6 @@ def update_shift(shift_id):
 
 # DELETE /api/shifts/:id
 @shifts_bp.route("/<uuid:shift_id>", methods=["DELETE"])
-@require_admin
 def cancel_shift(shift_id):
     conn = get_db()
     cur  = conn.cursor()
@@ -225,7 +220,6 @@ def cancel_shift(shift_id):
 
 # POST /api/shifts/:id/assign
 @shifts_bp.route("/<uuid:shift_id>/assign", methods=["POST"])
-@require_admin
 def manually_assign(shift_id):
     data              = request.get_json()
     user_id           = data.get("user_id")
@@ -293,7 +287,6 @@ def manually_assign(shift_id):
 
 # POST /api/shifts/:id/coverage
 @shifts_bp.route("/<uuid:shift_id>/coverage", methods=["POST"])
-@require_admin
 def trigger_coverage(shift_id):
     data              = request.get_json()
     shift_position_id = data.get("shift_position_id")

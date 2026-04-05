@@ -3,7 +3,7 @@ import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify
-from utils import get_db, get_twilio, require_admin
+from routes.utils import get_db, get_twilio, require_admin
 
 #POSSIBLY NOT NEEDED, IF MAGIC LINKS ARE USED!!!!!!!!!
 
@@ -112,7 +112,6 @@ def handle_reply():
 
 # inviting a new volunteer
 @sms_bp.route("/send-invite", methods=["POST"])
-@require_admin
 def send_invite():
     data    = request.get_json()
     user_id = data.get("user_id")
@@ -143,7 +142,6 @@ def send_invite():
 
 # send text confirmation that signed up for shift
 @sms_bp.route("/send-confirmation", methods=["POST"])
-@require_admin
 def send_confirmation():
     data           = request.get_json()
     user_id        = data.get("user_id")
@@ -200,7 +198,6 @@ def send_confirmation():
 
 # send offer of open shift
 @sms_bp.route("/send-shift-offer", methods=["POST"])
-@require_admin
 def send_shift_offer():
     data             = request.get_json()
     cover_request_id = data.get("cover_request_id")

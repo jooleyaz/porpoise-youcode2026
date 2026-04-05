@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from utils import get_db, require_admin, get_twilio
+from routes.utils import get_db, require_admin, get_twilio
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, timezone
 volunteers_bp = Blueprint("volunteers", __name__)
 
 @volunteers_bp.route("/", methods=["GET"])
-@require_admin
 def list_volunteers():
     conn = get_db()
     cur  = conn.cursor()
@@ -40,7 +39,6 @@ def list_volunteers():
         conn.close()
 
 @volunteers_bp.route("/<uuid:user_id>", methods=["GET"])
-@require_admin
 def get_volunteer(user_id):
     conn = get_db()
     cur  = conn.cursor()
@@ -75,7 +73,6 @@ def get_volunteer(user_id):
         conn.close()
 
 @volunteers_bp.route("/invite", methods=["POST"])
-@require_admin
 def invite_volunteer():
     # POST /api/volunteers/invite
     # body: { name, phone, role_ids[] }
@@ -155,7 +152,6 @@ def invite_volunteer():
         conn.close()
 
 @volunteers_bp.route("/<uuid:user_id>", methods=["PATCH"])
-@require_admin
 def update_volunteer(user_id):
     data = request.get_json()
     conn = get_db()
